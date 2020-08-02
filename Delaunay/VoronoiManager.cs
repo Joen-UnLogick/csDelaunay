@@ -17,7 +17,7 @@ namespace csDelaunay
 		Pool<Vertex> vertices;
 		Dictionary<int, ArrayPool<Halfedge>> halfEdgeArrayLookup = new Dictionary<int, ArrayPool<Halfedge>>();
 		Pool<EdgeList> edgeLists;
-		Pool<List<Vertex>> lListVertices;
+		Pool<List<Vertex>> listVertices;
 		Pool<List<Edge>> listEdges;
 		Pool<List<Site>> listSites;
 		Pool<List<Vector2f>> listVector2f;
@@ -211,13 +211,18 @@ namespace csDelaunay
 			return result;
 		}
 
-		public List<Vertex> ObtainListVertex()
+		public List<Vertex> ObtainListVertex(int capacity = 0)
 		{
-			if (lListVertices == null)
+			if (listVertices == null)
 			{
-				lListVertices = new Pool<List<Vertex>>();
+				listVertices = new Pool<List<Vertex>>();
 			}
-			return lListVertices.Get();
+			var result = listVertices.Get();
+			if (result.Capacity < capacity)
+			{
+				result.Capacity = capacity;
+			}
+			return result;
 		}
 
 
@@ -284,42 +289,26 @@ namespace csDelaunay
 
 		public void Release(List<Edge> list)
 		{
-			for (int i = 0; i < list.Count; i++)
-			{
-				list[i] = null;
-			}
 			list.Clear();
 			listEdges.Release(list);
 		}
 
 		public void Release(List<Halfedge> list)
 		{
-			for (int i = 0; i < list.Count; i++)
-			{
-				list[i] = null;
-			}
 			list.Clear();
 			listHalfEdges.Release(list);
 		}
 
 		public void Release(List<Site> list)
 		{
-			for (int i = 0; i < list.Count; i++)
-			{
-				list[i] = null;
-			}
 			list.Clear();
 			listSites.Release(list);
 		}
 
 		public void Release(List<Vertex> list)
 		{
-			for (int i = 0; i < list.Count; i++)
-			{
-				list[i] = null;
-			}
 			list.Clear();
-			lListVertices.Release(list);
+			listVertices.Release(list);
 		}
 
 		public void CheckDebug()

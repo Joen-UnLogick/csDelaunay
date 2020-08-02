@@ -1,7 +1,11 @@
 csDelaunay
 ==========
 
-C# delaunay library - Near Zero Garbage = MUCH faster
+Fork of the popular C# delaunay library 
+
+**This fork does resource pooling and has Near Zero Garbage = MUCH faster for multiple invocations **
+
+**7.33ms (0.8kb) compared to 27.31ms (2.5MB) without Lloyd**
 
 | Branch | Lloyd Relaxation | GC Alloc | Time ms |
 | --------------- | --------------- | --------------- | --------------- |
@@ -14,11 +18,7 @@ C# delaunay library - Near Zero Garbage = MUCH faster
 | Joen-UnLogick/master - First Iteration | 4 | 1.3 MB | 92.96 |
 | Joen-UnLogick/master - Second Iteration | 4 | 1.1 KB | 55.73 |
 
-As you can see if you only care about first iteration, the removeLRDictionaries branch for which I submitted a pull request is slightly faster. Adding all the allocated data into the pools does take a bit of time. However this price may get paid later when garbage collect kicks.
+As you can see if you only care about first iteration, the removeLRDictionaries branch for which I submitted a pull request is slightly faster. Adding all the allocated data into the pools does take a bit of time.
 
 This is a port and interpretation of actionscript library [as3delaunay](http://nodename.github.io/as3delaunay/)
 The original port was made by PouletFrit who also added a Lloyd relaxation function
-
-
-
-

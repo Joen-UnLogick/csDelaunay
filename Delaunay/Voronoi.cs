@@ -20,6 +20,7 @@ namespace csDelaunay {
 		public List<Site> Sites { get { return sites.Sites; } }
 
 		private Random weigthDistributor;
+		private List<Vertex> vertices;
 
 		public void Dispose() {
 			sites.Dispose();
@@ -27,9 +28,13 @@ namespace csDelaunay {
 			foreach (Edge e in edges) {
 				e.Dispose();
 			}
-			edges.Clear();
-
 			manager.Release(edges);
+
+			foreach (Vertex ve in vertices)
+			{
+				ve.Dispose(manager);
+			}
+			manager.Release(vertices);
 
 			plotBounds = Rectf.zero;
 		}
@@ -69,6 +74,7 @@ namespace csDelaunay {
 		private void Init(List<Vector2f> points, Rectf plotBounds) {
 			sites.Init(points.Count);
 			edges = manager.ObtainListEdge(points.Count * 3);
+			vertices = manager.ObtainListVertex(points.Count * 3);
 			AddSites(points);
 			this.plotBounds = plotBounds;
 			
@@ -156,7 +162,6 @@ namespace csDelaunay {
 			heap.Init(dataBounds.y, dataBounds.height, sqrtSitesNb);
 			EdgeList edgeList = manager.ObtainEdgeList(dataBounds.x, dataBounds.width, sqrtSitesNb);
 			List<Halfedge> halfEdges = manager.ObtainListHalfedge();
-			List<Vertex> vertices = manager.ObtainListVertex();
 
 			sites.ResetListIndex();
 			Site bottomMostSite = sites.Next();
@@ -278,15 +283,9 @@ namespace csDelaunay {
 			}
 			manager.Release(halfEdges);
 
-			// we need the vertices to clip the edges
 			foreach (Edge e in edges) {
 				e.ClipVertices(plotBounds);
 			}
-			// But we don't actually ever use them again!
-			foreach (Vertex ve in vertices) {
-				ve.Dispose(manager);
-			}
-			manager.Release(vertices);
 		}
 
 		public void LloydRelaxation(int nbIterations) {

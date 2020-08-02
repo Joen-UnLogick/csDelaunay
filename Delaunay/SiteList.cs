@@ -24,7 +24,6 @@ namespace csDelaunay {
 			{
 				site.Dispose();
 			}
-			sites.Clear();
 			manager.Release(sites);
 			ResetListIndex();
 		}
