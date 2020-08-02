@@ -1,22 +1,17 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace csDelaunay {
 
 	public class Halfedge {
 
 		#region Pool
-		private static Queue<Halfedge> pool = new Queue<Halfedge>();
-
-		public static Halfedge Create(Edge edge, LR lr) {
-			if (pool.Count > 0) {
-				return pool.Dequeue().Init(edge,lr);
-			} else {
-				return new Halfedge(edge,lr);
-			}
+		public static Halfedge Create(VoronoiManager manager, Edge edge, LR lr) {
+			return manager.ObtainHalfedge().Init(edge, lr);
 		}
-		public static Halfedge CreateDummy() {
-			return Create(null, null);
+		public static Halfedge CreateDummy(VoronoiManager manager) {
+			return manager.ObtainHalfedge().Init(null, null);
 		}
 		#endregion
 
@@ -31,6 +26,11 @@ namespace csDelaunay {
 
 		// The vertex's y-coordinate in the transformed Voronoi space V
 		public float ystar;
+
+		public Halfedge()
+		{
+			Init(null, null);
+		}
 
 		public Halfedge(Edge edge, LR lr) {
 			Init(edge, lr);
@@ -49,7 +49,7 @@ namespace csDelaunay {
 			return "Halfedge (LeftRight: " + leftRight + "; vertex: " + vertex + ")";
 		}
 
-		public void Dispose() {
+		public void Dispose(VoronoiManager manager) {
 			if (edgeListLeftNeighbor != null || edgeListRightNeighbor != null) {
 				// still in EdgeList
 				return;
@@ -61,17 +61,17 @@ namespace csDelaunay {
 			edge = null;
 			leftRight = null;
 			vertex = null;
-			pool.Enqueue(this);
+			manager.Release(this);
 		}
 
-		public void ReallyDispose() {
+		public void ReallyDispose(VoronoiManager manager) {
 			edgeListLeftNeighbor = null;
 			edgeListRightNeighbor = null;
 			nextInPriorityQueue = null;
 			edge = null;
 			leftRight = null;
 			vertex = null;
-			pool.Enqueue(this);
+			manager.Release(this);
 		}
 
 		public bool IsLeftOf(Vector2f p) {

@@ -9,64 +9,8 @@ namespace csDelaunay {
 	 * The line segment connecting the two Vertices is part of the Voronoi diagram
 	 */
 	public class Edge {
+		public VoronoiManager manager;
 
-		#region Pool
-		private static Queue<Edge> pool = new Queue<Edge>();
-		
-		private static int nEdges = 0;
-		/*
-		 * This is the only way to create a new Edge
-		 * @param site0
-		 * @param site1
-		 * @return
-		 */
-		public static Edge CreateBisectingEdge(Site s0, Site s1) {
-			float dx, dy;
-			float absdx, absdy;
-			float a, b, c;
-
-			dx = s1.x - s0.x;
-			dy = s1.y - s0.y;
-			absdx = dx > 0 ? dx : -dx;
-			absdy = dy > 0 ? dy : -dy;
-			c = s0.x * dx + s0.y * dy + (dx*dx + dy*dy) * 0.5f;
-
-			if (absdx > absdy) {
-				a = 1;
-				b = dy/dx;
-				c /= dx;
-			} else {
-				b = 1;
-				a = dx/dy;
-				c/= dy;
-			}
-
-			Edge edge = Edge.Create();
-
-			edge.LeftSite = s0;
-			edge.RightSite = s1;
-			s0.AddEdge(edge);
-			s1.AddEdge(edge);
-
-			edge.a = a;
-			edge.b = b;
-			edge.c = c;
-
-			return edge;
-		}
-
-		private static Edge Create() {
-			Edge edge;
-			if (pool.Count > 0) {
-				edge = pool.Dequeue();
-				edge.Init();
-			} else {
-				edge = new Edge();
-			}
-
-			return edge;
-		}
-		#endregion
 
 		public static List<Edge> SelectEdgesForSitePoint(Vector2f coord, List<Edge> edgesToTest) {
 			return edgesToTest.FindAll(
@@ -142,7 +86,7 @@ namespace csDelaunay {
 		}
 
 		// The two input Sites for which this Edge is a bisector:
-		private LRCollection<Site> sites;
+		private LRCollection<Site> sites = new LRCollection<Site>();
 		public Site LeftSite {get{return sites[LR.LEFT];} set{sites[LR.LEFT]=value;}}
 		public Site RightSite {get{return sites[LR.RIGHT];} set{sites[LR.RIGHT]=value;}}
 
@@ -151,30 +95,22 @@ namespace csDelaunay {
 		}
 
 		private int edgeIndex;
-		public int EdgeIndex {get{return edgeIndex;}}
+		public int EdgeIndex {get{return edgeIndex;} set { edgeIndex = value; } }
 
 		public void Dispose() {
 			leftVertex = null;
 			rightVertex = null;
 			if (clippedVertices != null) {
 				clippedVertices.Clear();
+				manager.Release(clippedVertices);
 				clippedVertices = null;
 			}
 			sites.Clear();
-			sites = null;
 
-			pool.Enqueue(this);
+			manager.Release(this);
 		}
 
 		public Edge() {
-			edgeIndex = nEdges++;
-			Init();
-		}
-
-		public Edge Init() {
-			sites = new LRCollection<Site>();
-
-			return this;
 		}
 
 		public override string ToString() {
@@ -283,7 +219,7 @@ namespace csDelaunay {
 				}
 			}
 
-			clippedVertices = new LRCollection<Vector2f>();
+			clippedVertices = manager.ObtainLRCollectionVector2f();
 			if (vertex0 == leftVertex) {
 				clippedVertices[LR.LEFT] = new Vector2f(x0, y0);
 				clippedVertices[LR.RIGHT] = new Vector2f(x1, y1);

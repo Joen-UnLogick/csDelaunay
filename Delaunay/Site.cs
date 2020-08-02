@@ -6,15 +6,7 @@ namespace csDelaunay {
 
 	public class Site : ICoord {
 
-		private static Queue<Site> pool = new Queue<Site>();
-
-		public static Site Create(Vector2f p, int index, float weigth) {
-			if (pool.Count > 0) {
-				return pool.Dequeue().Init(p, index, weigth);
-			} else {
-				return new Site(p, index, weigth);
-			}
-		}
+		public VoronoiManager manager;
 
 		public static void SortSites(List<Site> sites) {
 			sites.Sort(delegate(Site s0, Site s1) {
@@ -84,23 +76,24 @@ namespace csDelaunay {
 		public float Weigth {get{return weigth;}}
 
 		// The edges that define this Site's Voronoi region:
-		private List<Edge> edges;
+		private List<Edge> edges = new List<Edge>(10);
 		public List<Edge> Edges {get{return edges;}}
 		// which end of each edge hooks up with the previous edge in edges:
 		private List<LR> edgeOrientations;
 		// ordered list of points that define the region clipped to bounds:
 		private List<Vector2f> region;
 
+		public Site() {
+		}
+
 		public Site(Vector2f p, int index, float weigth) {
 			Init(p, index, weigth);
 		}
 
-		private Site Init(Vector2f p, int index, float weigth) {
+		public Site Init(Vector2f p, int index, float weigth) {
 			coord = p;
 			siteIndex = index;
 			this.weigth = weigth;
-			edges = new List<Edge>();
-			region = null;
 
 			return this;
 		}
@@ -116,21 +109,18 @@ namespace csDelaunay {
 
 		public void Dispose() {
 			Clear();
-			pool.Enqueue(this);
+			manager.Release(this);
 		}
 
-		private void Clear() {
+		public void Clear() {
 			if (edges != null) {
 				edges.Clear();
-				edges = null;
 			}
 			if (edgeOrientations != null) {
 				edgeOrientations.Clear();
-				edgeOrientations = null;
 			}
 			if (region != null) {
 				region.Clear();
-				region = null;
 			}
 		}
 
@@ -144,7 +134,7 @@ namespace csDelaunay {
 		}
 
 		public List<Site> NeighborSites() {
-			if (edges == null || edges.Count == 0) {
+			if (edges.Count == 0) {
 				return new List<Site>();
 			}
 			if (edgeOrientations == null) {

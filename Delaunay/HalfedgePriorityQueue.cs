@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace csDelaunay {
@@ -6,6 +7,7 @@ namespace csDelaunay {
 	// Also know as heap
 	public class HalfedgePriorityQueue {
 
+		public VoronoiManager manager;
 		private Halfedge[] hash;
 		private int count;
 		private int minBucked;
@@ -14,7 +16,17 @@ namespace csDelaunay {
 		private float ymin;
 		private float deltaY;
 
-		public HalfedgePriorityQueue(float ymin, float deltaY, int sqrtSitesNb) {
+		public HalfedgePriorityQueue(VoronoiManager manager, float ymin, float deltaY, int sqrtSitesNb) {
+			this.manager = manager;
+			Init(ymin, deltaY, sqrtSitesNb);
+		}
+
+		public HalfedgePriorityQueue()
+		{
+		}
+
+		public void Init(float ymin, float deltaY, int sqrtSitesNb)
+		{
 			this.ymin = ymin;
 			this.deltaY = deltaY;
 			hashSize = 4 * sqrtSitesNb;
@@ -24,18 +36,21 @@ namespace csDelaunay {
 		public void Dispose() {
 			// Get rid of dummies
 			for (int i = 0; i < hashSize; i++) {
-				hash[i].Dispose();
+				hash[i].Dispose(manager);
+				hash[i] = null;
 			}
+			manager.Release(hash);
 			hash = null;
+			manager.Release(this);
 		}
 
 		public void Init() {
 			count = 0;
 			minBucked = 0;
-			hash = new Halfedge[hashSize];
+			hash = manager.ObtainHalfedgeArray(hashSize);
 			// Dummy Halfedge at the top of each hash
 			for (int i = 0; i < hashSize; i++) {
-				hash[i] = Halfedge.CreateDummy();
+				hash[i] = Halfedge.CreateDummy(manager);
 				hash[i].nextInPriorityQueue = null;
 			}
 		}
@@ -70,7 +85,7 @@ namespace csDelaunay {
 				count--;
 				halfedge.vertex = null;
 				halfedge.nextInPriorityQueue = null;
-				halfedge.Dispose();
+				halfedge.Dispose(manager);
 			}
 		}
 

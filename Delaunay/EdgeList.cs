@@ -5,6 +5,7 @@ namespace csDelaunay {
 
 	public class EdgeList {
 
+		public VoronoiManager manager;
 		private float deltaX;
 		private float xmin;
 
@@ -16,30 +17,43 @@ namespace csDelaunay {
 		public Halfedge RightEnd {get{return rightEnd;}}
 
 		public void Dispose() {
-			Halfedge halfedge = leftEnd;
+			Halfedge halfedge = leftEnd.edgeListRightNeighbor;
 			Halfedge prevHe;
-			while (halfedge != rightEnd) {
+			while (halfedge != rightEnd)
+			{
 				prevHe = halfedge;
 				halfedge = halfedge.edgeListRightNeighbor;
-				prevHe.Dispose();
+				prevHe.Dispose(manager);
 			}
+			leftEnd.ReallyDispose(manager);
 			leftEnd = null;
-			rightEnd.Dispose();
+			rightEnd.ReallyDispose(manager);
 			rightEnd = null;
 
-			hash = null;
+			manager.Release(hash);
+			manager.Release(this);
 		}
 
-		public EdgeList(float xmin, float deltaX, int sqrtSitesNb) {
+		public EdgeList()
+		{
+		}
+
+		public EdgeList(float xmin, float deltaX, int sqrtSitesNb)
+		{
+			Init(xmin, deltaX, sqrtSitesNb);
+		}
+
+		public void Init(float xmin, float deltaX, int sqrtSitesNb)
+		{
 			this.xmin = xmin;
 			this.deltaX = deltaX;
 			hashSize = 2 * sqrtSitesNb;
 
-			hash = new Halfedge[hashSize];
+			hash = manager.ObtainHalfedgeArray(hashSize);
 
 			// Two dummy Halfedges:
-			leftEnd = Halfedge.CreateDummy();
-			rightEnd = Halfedge.CreateDummy();
+			leftEnd = Halfedge.CreateDummy(manager);
+			rightEnd = Halfedge.CreateDummy(manager);
 			leftEnd.edgeListLeftNeighbor = null;
 			leftEnd.edgeListRightNeighbor = rightEnd;
 			rightEnd.edgeListLeftNeighbor = leftEnd;

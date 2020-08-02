@@ -1,13 +1,13 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 
 namespace csDelaunay {
 
 	public class Voronoi {
 
+		private VoronoiManager manager;
+
 		private SiteList sites;
-		private List<Triangle> triangles;
 
 		private List<Edge> edges;
 		public List<Edge> Edges {get{return edges;}}
@@ -16,49 +16,61 @@ namespace csDelaunay {
 		// then we can make the fractal voronois-within-voronois
 		private Rectf plotBounds;
 		public Rectf PlotBounds {get{return plotBounds;}}
-		
-		private Dictionary<Vector2f,Site> sitesIndexedByLocation;
-		public Dictionary<Vector2f,Site> SitesIndexedByLocation {get{return sitesIndexedByLocation;}}
+
+		public List<Site> Sites { get { return sites.Sites; } }
 
 		private Random weigthDistributor;
 
 		public void Dispose() {
 			sites.Dispose();
-			sites = null;
-
-			foreach (Triangle t in triangles) {
-				t.Dispose();
-			}
-			triangles.Clear();
 
 			foreach (Edge e in edges) {
 				e.Dispose();
 			}
 			edges.Clear();
 
+			manager.Release(edges);
+
 			plotBounds = Rectf.zero;
-			sitesIndexedByLocation.Clear();
-			sitesIndexedByLocation = null;
 		}
 
-		public Voronoi(List<Vector2f> points, Rectf plotBounds) {
-			weigthDistributor = new Random();
-			Init(points,plotBounds);
+		public Voronoi(List<Vector2f> points, Rectf plotBounds)
+			: this(new VoronoiManager(points.Count), points, plotBounds, 0)
+		{
 		}
 
-		public Voronoi(List<Vector2f> points, Rectf plotBounds, int lloydIterations) {
+		public Voronoi(List<Vector2f> points, Rectf plotBounds, int lloydIterations) 
+			: this(new VoronoiManager(points.Count), points, plotBounds, lloydIterations)
+		{
+		}
+
+		public Voronoi(VoronoiManager manager, List<Vector2f> points, Rectf plotBounds, int lloydIterations)
+		{
+			this.manager = manager;
+			sites = new SiteList(manager);
 			weigthDistributor = new Random();
-			Init(points,plotBounds);
-			LloydRelaxation(lloydIterations);
+			Init(points, plotBounds);
+			if (lloydIterations > 0)
+			{
+				LloydRelaxation(lloydIterations);
+			}
+		}
+
+		public void Rebuild(List<Vector2f> points, Rectf plotBounds, int lloydIterations)
+		{
+			Dispose();
+			Init(points, plotBounds);
+			if (lloydIterations > 0)
+			{
+				LloydRelaxation(lloydIterations);
+			}
 		}
 
 		private void Init(List<Vector2f> points, Rectf plotBounds) {
-			sites = new SiteList();
-			sitesIndexedByLocation = new Dictionary<Vector2f, Site>();
+			sites.Init(points.Count);
+			edges = manager.ObtainListEdge(points.Count * 3);
 			AddSites(points);
 			this.plotBounds = plotBounds;
-			triangles = new List<Triangle>();
-			edges = new List<Edge>();
 			
 			FortunesAlgorithm();
 		}
@@ -71,31 +83,8 @@ namespace csDelaunay {
 
 		private void AddSite(Vector2f p, int index) {
 			float weigth = (float)weigthDistributor.NextDouble() * 100;
-			Site site = Site.Create(p, index, weigth);
+			Site site = manager.ObtainSite(p, index, weigth);
 			sites.Add(site);
-			sitesIndexedByLocation[p] = site;
-		}
-
-		public List<Vector2f> Region (Vector2f p) {
-			Site site;
-			if (sitesIndexedByLocation.TryGetValue(p, out site)) {
-				return site.Region(plotBounds);
-			} else {
-				return new List<Vector2f>();
-			}
-		}
-
-		public List<Vector2f> NeighborSitesForSite(Vector2f coord) {
-			List<Vector2f> points = new List<Vector2f>();
-			Site site;
-			if (sitesIndexedByLocation.TryGetValue(coord, out site)) {
-				List<Site> sites = site.NeighborSites();
-				foreach (Site neighbor in sites) {
-					points.Add(neighbor.Coord);
-				}
-			}
-
-			return points;
 		}
 
 		public List<Circle> Circles() {
@@ -163,11 +152,13 @@ namespace csDelaunay {
 			Rectf dataBounds = sites.GetSitesBounds();
 
 			int sqrtSitesNb = (int)Math.Sqrt(sites.Count() + 4);
-			HalfedgePriorityQueue heap = new HalfedgePriorityQueue(dataBounds.y, dataBounds.height, sqrtSitesNb);
-			EdgeList edgeList = new EdgeList(dataBounds.x, dataBounds.width, sqrtSitesNb);
-			List<Halfedge> halfEdges = new List<Halfedge>();
-			List<Vertex> vertices = new List<Vertex>();
+			HalfedgePriorityQueue heap = manager.ObtainHalfedgePriorityQueue();
+			heap.Init(dataBounds.y, dataBounds.height, sqrtSitesNb);
+			EdgeList edgeList = manager.ObtainEdgeList(dataBounds.x, dataBounds.width, sqrtSitesNb);
+			List<Halfedge> halfEdges = manager.ObtainListHalfedge();
+			List<Vertex> vertices = manager.ObtainListVertex();
 
+			sites.ResetListIndex();
 			Site bottomMostSite = sites.Next();
 			newSite = sites.Next();
 
@@ -191,18 +182,18 @@ namespace csDelaunay {
 					//UnityEngine.Debug.Log("new Site is in region of existing site: " + bottomSite);
 
 					// Step 9
-					edge = Edge.CreateBisectingEdge(bottomSite, newSite);
+					edge = manager.CreateBisectingEdge(bottomSite, newSite);
 					//UnityEngine.Debug.Log("new edge: " + edge);
 					edges.Add(edge);
 
-					bisector = Halfedge.Create(edge, LR.LEFT);
+					bisector = Halfedge.Create(manager, edge, LR.LEFT);
 					halfEdges.Add(bisector);
 					// Inserting two halfedges into edgelist constitutes Step 10:
 					// Insert bisector to the right of lbnd:
 					edgeList.Insert(lbnd, bisector);
 
 					// First half of Step 11:
-					if ((vertex = Vertex.Intersect(lbnd, bisector)) != null) {
+					if ((vertex = Vertex.Intersect(manager, lbnd, bisector)) != null) {
 						vertices.Add(vertex);
 						heap.Remove(lbnd);
 						lbnd.vertex = vertex;
@@ -211,14 +202,14 @@ namespace csDelaunay {
 					}
 
 					lbnd = bisector;
-					bisector = Halfedge.Create(edge, LR.RIGHT);
+					bisector = Halfedge.Create(manager, edge, LR.RIGHT);
 					halfEdges.Add(bisector);
 					// Second halfedge for Step 10::
 					// Insert bisector to the right of lbnd:
 					edgeList.Insert(lbnd, bisector);
 
 					// Second half of Step 11:
-					if ((vertex = Vertex.Intersect(bisector, rbnd)) != null) {
+					if ((vertex = Vertex.Intersect(manager, bisector, rbnd)) != null) {
 						vertices.Add(vertex);
 						bisector.vertex = vertex;
 						bisector.ystar = vertex.y + newSite.Dist(vertex);
@@ -234,8 +225,8 @@ namespace csDelaunay {
 					rrbnd = rbnd.edgeListRightNeighbor;
 					bottomSite = LeftRegion(lbnd, bottomMostSite);
 					topSite = RightRegion(rbnd, bottomMostSite);
-					// These three sites define a Delaunay triangle
-					// (not actually using these for anything...)
+
+					// These three sites define a Delaunay triangle (not actually using these for anything... so I removed it)
 					// triangles.Add(new Triangle(bottomSite, topSite, RightRegion(lbnd, bottomMostSite)));
 
 					v = lbnd.vertex;
@@ -252,20 +243,20 @@ namespace csDelaunay {
 						topSite = tempSite;
 						leftRight = LR.RIGHT;
 					}
-					edge = Edge.CreateBisectingEdge(bottomSite, topSite);
+					edge = manager.CreateBisectingEdge(bottomSite, topSite);
 					edges.Add(edge);
-					bisector = Halfedge.Create(edge, leftRight);
+					bisector = Halfedge.Create(manager, edge, leftRight);
 					halfEdges.Add(bisector);
 					edgeList.Insert(llbnd, bisector);
 					edge.SetVertex(LR.Other(leftRight), v);
-					if ((vertex = Vertex.Intersect(llbnd, bisector)) != null) {
+					if ((vertex = Vertex.Intersect(manager, llbnd, bisector)) != null) {
 						vertices.Add(vertex);
 						heap.Remove(llbnd);
 						llbnd.vertex = vertex;
 						llbnd.ystar = vertex.y + bottomSite.Dist(vertex);
 						heap.Insert(llbnd);
 					}
-					if ((vertex = Vertex.Intersect(bisector, rrbnd)) != null) {
+					if ((vertex = Vertex.Intersect(manager, bisector, rrbnd)) != null) {
 						vertices.Add(vertex);
 						bisector.vertex = vertex;
 						bisector.ystar = vertex.y + bottomSite.Dist(vertex);
@@ -276,14 +267,16 @@ namespace csDelaunay {
 				}
 			}
 
-			// Heap should be empty now
-			heap.Dispose();
 			edgeList.Dispose();
 
-			foreach (Halfedge halfedge in halfEdges) {
-				halfedge.ReallyDispose();
+			// Heap should be empty now
+			heap.Dispose();
+
+			foreach (Halfedge halfedge in halfEdges)
+			{
+				halfedge.ReallyDispose(manager);
 			}
-			halfEdges.Clear();
+			manager.Release(halfEdges);
 
 			// we need the vertices to clip the edges
 			foreach (Edge e in edges) {
@@ -291,58 +284,39 @@ namespace csDelaunay {
 			}
 			// But we don't actually ever use them again!
 			foreach (Vertex ve in vertices) {
-				ve.Dispose();
+				ve.Dispose(manager);
 			}
-			vertices.Clear();
+			manager.Release(vertices);
 		}
 
 		public void LloydRelaxation(int nbIterations) {
+			var regionBuilder = manager.ObtainRegionBuilder();
+			List<Vector2f> newPoints = manager.ObtainListVector2f(sites.Count());
+
 			// Reapeat the whole process for the number of iterations asked
 			for (int i = 0; i < nbIterations; i++) {
-				List<Vector2f> newPoints = new List<Vector2f>();
+#if UNITY_EDITOR
+				UnityEngine.Profiling.Profiler.BeginSample("Lloyd" + i);
+#endif
 				// Go thourgh all sites
 				sites.ResetListIndex();
 				Site site = sites.Next();
-
 				while (site != null) {
+
+					var region = regionBuilder.Build(site.Edges, plotBounds);
+					//var region = site.Region(plotBounds);
 					// Loop all corners of the site to calculate the centroid
-					List<Vector2f> region = site.Region(plotBounds);
-					if (region.Count < 1) {
+					if (region.Count < 1)
+					{
 						site = sites.Next();
 						continue;
 					}
-					
-					Vector2f centroid = Vector2f.zero;
-					float signedArea = 0;
-					float x0 = 0;
-					float y0 = 0;
-					float x1 = 0;
-					float y1 = 0;
-					float a = 0;
-					// For all vertices except last
-					for (int j = 0; j < region.Count-1; j++) {
-						x0 = region[j].x;
-						y0 = region[j].y;
-						x1 = region[j+1].x;
-						y1 = region[j+1].y;
-						a = x0*y1 - x1*y0;
-						signedArea += a;
-						centroid.x += (x0 + x1)*a;
-						centroid.y += (y0 + y1)*a;
-					}
-					// Do last vertex
-					x0 = region[region.Count-1].x;
-					y0 = region[region.Count-1].y;
-					x1 = region[0].x;
-					y1 = region[0].y;
-					a = x0*y1 - x1*y0;
-					signedArea += a;
-					centroid.x += (x0 + x1)*a;
-					centroid.y += (y0 + y1)*a;
 
-					signedArea *= 0.5f;
-					centroid.x /= (6*signedArea);
-					centroid.y /= (6*signedArea);
+					Vector2f centroid = GetCentroid(region);
+					//region.Reverse();
+					//Vector2f centroidReverse = GetCentroid(region);
+					//UnityEngine.Debug.Log((centroid - centroidReverse).magnitude);
+
 					// Move site to the centroid of its Voronoi cell
 					newPoints.Add(centroid);
 					site = sites.Next();
@@ -352,8 +326,55 @@ namespace csDelaunay {
 				// we need to recompute Voronoi diagram:
 				Rectf origPlotBounds = this.plotBounds;
 				Dispose();
+
+				manager.CheckDebug();
+
 				Init(newPoints,origPlotBounds);
+				newPoints.Clear();
+#if UNITY_EDITOR
+				UnityEngine.Profiling.Profiler.EndSample();
+#endif
 			}
+			manager.Release(regionBuilder);
+			manager.Release(newPoints);
+		}
+
+		private Vector2f GetCentroid(List<Vector2f> region)
+		{
+			Vector2f centroid = Vector2f.zero;
+			float signedArea = 0;
+			float x0 = 0;
+			float y0 = 0;
+			float x1 = 0;
+			float y1 = 0;
+			float a = 0;
+			// For all vertices except last
+			for (int j = 0; j < region.Count - 1; j++)
+			{
+				x0 = region[j].x;
+				y0 = region[j].y;
+				x1 = region[j + 1].x;
+				y1 = region[j + 1].y;
+				a = x0 * y1 - x1 * y0;
+				signedArea += a;
+				centroid.x += (x0 + x1) * a;
+				centroid.y += (y0 + y1) * a;
+			}
+			// Do last vertex
+			x0 = region[region.Count - 1].x;
+			y0 = region[region.Count - 1].y;
+			x1 = region[0].x;
+			y1 = region[0].y;
+			a = x0 * y1 - x1 * y0;
+			signedArea += a;
+			centroid.x += (x0 + x1) * a;
+			centroid.y += (y0 + y1) * a;
+
+			signedArea *= 0.5f;
+			centroid.x /= (6 * signedArea);
+			centroid.y /= (6 * signedArea);
+
+			return centroid;
 		}
 
 		private Site LeftRegion(Halfedge he, Site bottomMostSite) {

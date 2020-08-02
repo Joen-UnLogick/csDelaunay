@@ -9,19 +9,14 @@ namespace csDelaunay {
 		public static readonly Vertex VERTEX_AT_INFINITY = new Vertex(float.NaN, float.NaN);
 
 		#region Pool
-		private static Queue<Vertex> pool = new Queue<Vertex>();
-
-		private static int nVertices = 0;
-
-		private static Vertex Create(float x, float y) {
+		private static Vertex Create(VoronoiManager manager, float x, float y) {
 			if (float.IsNaN(x) || float.IsNaN(y)) {
 				return VERTEX_AT_INFINITY;
 			}
-			if (pool.Count > 0) {
-				return pool.Dequeue().Init(x,y);
-			} else {
-				return new Vertex(x,y);
-			}
+
+			var result = manager.ObtainVertex();
+			result.Init(x,y);
+			return result;
 		}
 		#endregion
 
@@ -33,7 +28,10 @@ namespace csDelaunay {
 		public float y {get{return coord.y;}}
 
 		private int vertexIndex;
-		public int VertexIndex {get{return vertexIndex;}}
+		public int VertexIndex { get { return vertexIndex; } set { vertexIndex = value; } }
+
+		public Vertex() {
+		}
 
 		public Vertex(float x, float y) {
 			Init(x,y);
@@ -45,13 +43,9 @@ namespace csDelaunay {
 			return this;
 		}
 
-		public void Dispose() {
+		public void Dispose(VoronoiManager manager) {
 			coord = Vector2f.zero;
-			pool.Enqueue(this);
-		}
-
-		public void SetIndex() {
-			vertexIndex = nVertices++;
+			manager.Release(this);
 		}
 
 		public override string ToString() {
@@ -66,7 +60,7 @@ namespace csDelaunay {
 		 * @return
 		 * 
 		 */
-		public static Vertex Intersect(Halfedge halfedge0, Halfedge halfedge1) {
+		public static Vertex Intersect(VoronoiManager manager, Halfedge halfedge0, Halfedge halfedge1) {
 			Edge edge, edge0, edge1;
 			Halfedge halfedge;
 			float determinant, intersectionX, intersectionY;
@@ -103,7 +97,11 @@ namespace csDelaunay {
 				return null;
 			}
 
-			return Vertex.Create(intersectionX, intersectionY);
+			return Vertex.Create(manager, intersectionX, intersectionY);
+		}
+
+		public void SetIndex()
+		{
 		}
 		#endregion
 	}

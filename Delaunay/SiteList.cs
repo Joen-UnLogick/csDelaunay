@@ -10,14 +10,23 @@ namespace csDelaunay {
 		private int currentIndex;
 
 		private bool sorted;
+		private VoronoiManager manager;
 
-		public SiteList() {
-			sites = new List<Site>();
+		public List<Site> Sites { get { return sites; } }
+
+		public SiteList(VoronoiManager manager) {
+			this.manager = manager;
 			sorted = false;
 		}
 
 		public void Dispose() {
+			foreach(var site in sites)
+			{
+				site.Dispose();
+			}
 			sites.Clear();
+			manager.Release(sites);
+			ResetListIndex();
 		}
 
 		public int Add(Site site) {
@@ -70,6 +79,11 @@ namespace csDelaunay {
 			}
 
 			return coords;
+		}
+
+		public void Init(int capacity)
+		{
+			sites = manager.ObtainListSite(capacity);
 		}
 
 		/*
