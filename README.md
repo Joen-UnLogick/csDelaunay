@@ -3,7 +3,7 @@ csDelaunay
 
 Fork of the popular C# delaunay library 
 
-**This fork does resource pooling and has Near Zero Garbage = MUCH faster for multiple invocations **
+**This fork does resource pooling and has Near Zero Garbage = MUCH faster for multiple invocations**
 
 **7.33ms (0.8kb) compared to 27.31ms (2.5MB) without Lloyd**
 
